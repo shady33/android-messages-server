@@ -1,8 +1,12 @@
 package com.shady.messages_online;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -112,6 +116,7 @@ public class MainActivity extends Activity {
 	protected void onResume(){
 		super.onResume();
 		try {
+			where.add(0, "");
 			server=new MyHTTPD();
 			server.start();
 		} catch (IOException e) {
@@ -167,49 +172,13 @@ public class MainActivity extends Activity {
 	        System.out.println(method + " '" + uri + "' ");
 	        String msg = null;
 	        
-	        Cursor cursor = getContentResolver().query(Uri.parse("content://sms"), null, null, null, null);
-			int b=1;
-			where.add("");
-
 			if(uri.contains("index.html")){
 				msg="<html><head>"+
 	        			script1+
 	        			onload+
-	        			"</head><body><h1>Hello server</h1>\n";
-		        msg+="<div id=\"container\" style=\"width:800px\"><div id=\"header\" style=\"background-color:#FFA500;\"><h1 style=\"margin-bottom:0;\">Main Title of Web Page</h1></div>";
+	        			"</head><body><h1>Hello User</h1>\n";
+		        msg+="<div id=\"container\" style=\"width:800px\"><div id=\"header\" style=\"background-color:#FFA500;\"><h1 style=\"margin-bottom:0;\">Messaging Server for your phone</h1></div>";
 		        Log.d("com.shady", Long.toString(System.currentTimeMillis()));
-			/*if(cursor.moveToFirst()){
-				//Log.d("com.shady",cursor.getLong(cursor.getColumnIndex("date"));
-				do{
-					int i=0;
-					long contactId = cursor.getLong(3);
-	            	String contactId_string = String.valueOf(contactId);
-	        		String address = cursor.getString(cursor.getColumnIndex("address"));
-	            	boolean add=true;
-	            	for(i=0;i<b;i++){
-	            	if(where.get(i).equals(address)){
-	            		add=false;
-	            		break;
-	            	}}
-	            	if(add){
-	           		Uri uri1 = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, Uri.encode(contactId_string));
-	            	String[] projection = new String[]{ PhoneLookup.DISPLAY_NAME,PhoneLookup.PHOTO_URI};
-	            	Cursor cursor1 = getContentResolver().query(uri1, projection,null,null,null);
-	            	cursor1.moveToFirst();
-	            	where.add(address);
-
-	            	try{
-	            		display.add(cursor1.getString(0));
-
-	            	}catch(Exception e){
-	            		display.add(address);
-	            	}
-	            	
-	            	b++;
-	            	cursor1.close();
-	            	}
-				}while(cursor.moveToNext());
-			}*/
 	    	cachedata();
 
 			Log.d("com.shady", Long.toString(System.currentTimeMillis()));
@@ -220,7 +189,9 @@ public class MainActivity extends Activity {
 	        msg+="</table></div>";	
 	        msg+="<div id=\"content\" style=\"height:400px;width:500px;float:right;overflow:auto;\">";
 			}
-        	Integer val=0;
+			Cursor cursor = getContentResolver().query(Uri.parse("content://sms"), null, null, null, null);
+			
+			Integer val=0;
         	if(uri.contains("message")){
         		val=Integer.parseInt(uri.substring(9, uri.length()));
         		contacttosend=where.get(val);
@@ -285,7 +256,7 @@ public class MainActivity extends Activity {
 				}
 	    		
 	    		String message=session.getQueryParameterString().substring(5,session.getQueryParameterString().length());
-	    		String sms="SMS Sent";//sendSMS(contacttosend,message);
+	    		String sms=sendSMS(contacttosend,message);
 	    		return new NanoHTTPD.Response(sms);
 	    	}
 	    	
@@ -343,16 +314,31 @@ public class MainActivity extends Activity {
 		return smsresponse;
     }
     
-    @SuppressLint("SimpleDateFormat")
+    @SuppressLint({ "SimpleDateFormat", "SdCardPath" })
 	private void cachedata(){
     	//Long.toString(System.currentTimeMillis());
+    	
+        try {
+            FileInputStream inputStream = openFileInput(filename);
+            BufferedReader r = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            while ((line = r.readLine()) != null) {
+                where.add(line);
+            }
+            r.close();
+            inputStream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        //Log.d("com.shady","first:"+where.get(1));
+        Log.d("com.shady", "before:"+Integer.toString(where.size()));
         Cursor cursor = getContentResolver().query(Uri.parse("content://sms"), null, null, null, null);
-        int b=1;
+        int b=where.size();
         long buffer = 0;
     	if(cursor.moveToFirst()){
 			buffer=cursor.getLong(cursor.getColumnIndex("date"));
 			do{
-				int i=0;
+				int i=0;	
 				long contactId = cursor.getLong(3);
             	String contactId_string = String.valueOf(contactId);
         		String address = cursor.getString(cursor.getColumnIndex("address"));
@@ -382,9 +368,12 @@ public class MainActivity extends Activity {
 			}while(cursor.moveToNext());
 		}
         try {
+        	Log.d("com.shady",Boolean.toString((new File("/data/data/com.shady.messages_online/files",filename).delete())));
+        	new File("/data/data/com.shady.messages_online/files",filename1).delete();
             FileOutputStream outputStream = openFileOutput(filename, Context.MODE_PRIVATE);
-            for(String line : where)
-            outputStream.write(line.getBytes());
+            for(String line : where){
+            	outputStream.write((line+"\n").getBytes());
+            }
             outputStream.close();
             FileOutputStream outputStream1 = openFileOutput(filename1, Context.MODE_PRIVATE);
             outputStream1.write(longToBytes(buffer));
@@ -392,6 +381,8 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        Log.d("com.shady", Integer.toString(where.size()));
+        cursor.close();
     }
     
     
@@ -399,5 +390,12 @@ public class MainActivity extends Activity {
         ByteBuffer buffer = ByteBuffer.allocate(Long.SIZE);
         buffer.putLong(x);
         return buffer.array();
+    }
+    
+    public long bytesToLong(byte[] bytes) {
+        ByteBuffer buffer = ByteBuffer.allocate(Long.SIZE);
+        buffer.put(bytes);
+        buffer.flip();//need flip 
+        return buffer.getLong();
     }
 }
