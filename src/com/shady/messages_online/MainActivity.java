@@ -1,14 +1,17 @@
 package com.shady.messages_online;
 
-import java.io.BufferedReader;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.PendingIntent;
 import fi.iki.elonen.NanoHTTPD;
@@ -30,7 +33,6 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
@@ -38,7 +40,8 @@ public class MainActivity extends Activity {
 		List<String> where = new ArrayList<String>();
 		List<String> display = new ArrayList<String>();
 		List<String> messages = new ArrayList<String>();
-		
+		String filename="previouscontacts";
+		String filename1="lasttime";
 		//List<Integer> from = new ArrayList<Integer>();
 		//String returnstate="return oldHtml.replace(/\\b(\\w+?)\\b/g, \'<span class=\"word\">$1</span>\')"+"});";
 		String contacttosend="";
@@ -62,7 +65,7 @@ public class MainActivity extends Activity {
 				+"type: 'POST',\n"
 				+"url: 'send',\n"
     			+"data: {name: $(\"#messagebox\").val()}, \n"
-    			+"success: function(data) { alert('data: ' + data); },\n"
+    			+"success: function(data) { alert('Message from server: ' + data); },\n"
 				+"});\n"
 				+ "});\n";
 		
@@ -175,7 +178,8 @@ public class MainActivity extends Activity {
 	        			"</head><body><h1>Hello server</h1>\n";
 		        msg+="<div id=\"container\" style=\"width:800px\"><div id=\"header\" style=\"background-color:#FFA500;\"><h1 style=\"margin-bottom:0;\">Main Title of Web Page</h1></div>";
 		        Log.d("com.shady", Long.toString(System.currentTimeMillis()));
-			if(cursor.moveToFirst()){
+			/*if(cursor.moveToFirst()){
+				//Log.d("com.shady",cursor.getLong(cursor.getColumnIndex("date"));
 				do{
 					int i=0;
 					long contactId = cursor.getLong(3);
@@ -205,14 +209,15 @@ public class MainActivity extends Activity {
 	            	cursor1.close();
 	            	}
 				}while(cursor.moveToNext());
-			}
+			}*/
+	    	cachedata();
+
 			Log.d("com.shady", Long.toString(System.currentTimeMillis()));
 			msg+="<label>Search for contacts: <input id=\"search\" type=\"text\"></label>";
 			msg+="<div id=\"menu\" style=\"height:400px;width:300px;float:left;overflow:auto;\"><br><table>";	        
 	        for (int cnt=0;cnt<display.size();cnt++)
 				msg+="<tr>\n<td id=\""+(cnt+1)+"\">"+display.get(cnt)+"</td>\n</tr>\n";
 	        msg+="</table></div>";	
-	        
 	        msg+="<div id=\"content\" style=\"height:400px;width:500px;float:right;overflow:auto;\">";
 			}
         	Integer val=0;
@@ -280,8 +285,8 @@ public class MainActivity extends Activity {
 				}
 	    		
 	    		String message=session.getQueryParameterString().substring(5,session.getQueryParameterString().length());
-	    		//sendSMS(contacttosend,message);
-	    		Log.d("com.shady",contacttosend+":"+message);
+	    		String sms="SMS Sent";//sendSMS(contacttosend,message);
+	    		return new NanoHTTPD.Response(sms);
 	    	}
 	    	
 	    	
@@ -299,10 +304,10 @@ public class MainActivity extends Activity {
 	    	return new NanoHTTPD.Response(msg);
 	    }
 	}
-    private void sendSMS(String phoneNumber, String message)
+    private String sendSMS(String phoneNumber, String message)
     {        
         String SENT = "SMS_SENT";
- 
+        final String smsresponse = "SMS_SENT";
         PendingIntent sentPI = PendingIntent.getBroadcast(this, 0,
             new Intent(SENT), 0);
  
@@ -314,30 +319,85 @@ public class MainActivity extends Activity {
                 switch (getResultCode())
                 {
                     case Activity.RESULT_OK:
-                        Toast.makeText(getBaseContext(), "SMS sent", 
-                                Toast.LENGTH_SHORT).show();
+                    	//smsresponse= "SMS sent";
                         break;
                     case SmsManager.RESULT_ERROR_GENERIC_FAILURE:
-                        Toast.makeText(getBaseContext(), "Generic failure", 
-                                Toast.LENGTH_SHORT).show();
+                    	//smsresponse= "Generic failure";
                         break;
                     case SmsManager.RESULT_ERROR_NO_SERVICE:
-                        Toast.makeText(getBaseContext(), "No service", 
-                                Toast.LENGTH_SHORT).show();
+                    	//smsresponse= "No service"; 
                         break;
                     case SmsManager.RESULT_ERROR_NULL_PDU:
-                        Toast.makeText(getBaseContext(), "Null PDU", 
-                                Toast.LENGTH_SHORT).show();
+                    	//smsresponse= "Null PDU"; 
                         break;
                     case SmsManager.RESULT_ERROR_RADIO_OFF:
-                        Toast.makeText(getBaseContext(), "Radio off", 
-                                Toast.LENGTH_SHORT).show();
+                    	//smsresponse= "Radio off";
                         break;
                 }
             }
         }, new IntentFilter(SENT));       
  
         SmsManager sms = SmsManager.getDefault();
-        sms.sendTextMessage(phoneNumber, null, message, sentPI, null);        
+        sms.sendTextMessage(phoneNumber, null, message, sentPI, null);
+        
+		return smsresponse;
+    }
+    
+    @SuppressLint("SimpleDateFormat")
+	private void cachedata(){
+    	//Long.toString(System.currentTimeMillis());
+        Cursor cursor = getContentResolver().query(Uri.parse("content://sms"), null, null, null, null);
+        int b=1;
+        long buffer = 0;
+    	if(cursor.moveToFirst()){
+			buffer=cursor.getLong(cursor.getColumnIndex("date"));
+			do{
+				int i=0;
+				long contactId = cursor.getLong(3);
+            	String contactId_string = String.valueOf(contactId);
+        		String address = cursor.getString(cursor.getColumnIndex("address"));
+            	boolean add=true;
+            	for(i=0;i<b;i++){
+            	if(where.get(i).equals(address)){
+            		add=false;
+            		break;
+            	}}
+            	if(add){
+           		Uri uri1 = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, Uri.encode(contactId_string));
+            	String[] projection = new String[]{ PhoneLookup.DISPLAY_NAME,PhoneLookup.PHOTO_URI};
+            	Cursor cursor1 = getContentResolver().query(uri1, projection,null,null,null);
+            	cursor1.moveToFirst();
+            	where.add(address);
+
+            	try{
+            		display.add(cursor1.getString(0));
+
+            	}catch(Exception e){
+            		display.add(address);
+            	}
+            	
+            	b++;
+            	cursor1.close();
+            	}
+			}while(cursor.moveToNext());
+		}
+        try {
+            FileOutputStream outputStream = openFileOutput(filename, Context.MODE_PRIVATE);
+            for(String line : where)
+            outputStream.write(line.getBytes());
+            outputStream.close();
+            FileOutputStream outputStream1 = openFileOutput(filename1, Context.MODE_PRIVATE);
+            outputStream1.write(longToBytes(buffer));
+            outputStream1.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    
+    public byte[] longToBytes(long x) {
+        ByteBuffer buffer = ByteBuffer.allocate(Long.SIZE);
+        buffer.putLong(x);
+        return buffer.array();
     }
 }
